@@ -1,0 +1,507 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --dark-background: 222.2 84% 4.9%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 215 20.2% 65.1%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: var(--dark-background, 222.2 84% 4.9%);
+    --foreground: 213 31% 91%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+    
+    /* よりコントラストの高いダークモードを実現するための追加変数 */
+    --dark-bg-1: 222.2 84% 4.9%;
+    --dark-bg-2: 222.2 47.4% 11.2%;
+    --dark-text-1: 210 40% 98%;
+    --dark-text-2: 215 20.2% 65.1%;
+    --dark-accent-1: 221.2 83.2% 53.3%;
+    --dark-accent-2: 226.4 100% 93.9%;
+    --dark-border-1: 217.2 32.6% 17.5%;
+    --dark-border-2: 215.3 25% 26.7%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    transition: background-color 0.5s ease, color 0.5s ease;
+  }
+  
+  :root {
+    transition: color-scheme 0.5s ease;
+  }
+
+  /* プリフィックスをつけて競合を避ける */
+  [data-bg-color="default"] {
+    background-color: #FFFFFF !important;
+  }
+
+  [data-bg-color="gray"] {
+    background-color: #F1F5F9 !important;
+  }
+
+  [data-bg-color="blue"] {
+    background-color: #EFF6FF !important;
+  }
+
+  [data-bg-color="green"] {
+    background-color: #F0FDF4 !important;
+  }
+
+  [data-bg-color="pink"] {
+    background-color: #FDF2F8 !important;
+  }
+
+  [data-bg-color="purple"] {
+    background-color: #FAF5FF !important;
+  }
+
+  /* ダークモードの背景色 */
+  .dark[data-bg-color="default"] {
+    background-color: #0a0a0f !important;
+  }
+
+  .dark[data-bg-color="gray"] {
+    background-color: #111827 !important;
+  }
+
+  .dark[data-bg-color="blue"] {
+    background-color: #0f172a !important;
+  }
+
+  .dark[data-bg-color="green"] {
+    background-color: #052e16 !important;
+  }
+
+  .dark[data-bg-color="pink"] {
+    background-color: #4a044e !important;
+  }
+
+  .dark[data-bg-color="purple"] {
+    background-color: #2e1065 !important;
+  }
+}
+
+/* 音楽プレーヤー用スタイル追加 */
+.music-player-controls button:focus {
+  outline: none;
+}
+
+.music-player-seekbar {
+  height: 4px;
+  background-color: rgba(22, 163, 74, 0.2);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+  transition: height 0.2s ease;
+}
+
+.music-player-seekbar:hover {
+  height: 6px;
+}
+
+.music-player-seekbar-fill {
+  height: 100%;
+  background-color: rgb(22, 163, 74);
+  border-radius: 2px;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.music-player-seekbar-handle {
+  width: 12px;
+  height: 12px;
+  background-color: rgb(22, 163, 74);
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.music-player-seekbar:hover .music-player-seekbar-handle {
+  opacity: 1;
+}
+
+/* カスタムプレーヤーのスタイル */
+.music-player-seeker {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+}
+
+.music-player-seeker-fill {
+  height: 100%;
+  background-color: #FF0000;
+  border-radius: 2px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.music-player-seeker:hover {
+  height: 6px;
+}
+
+.music-player-seeker:hover .music-player-seeker-fill {
+  background-color: #FF0000;
+}
+
+.music-player-seeker-handle {
+  width: 12px;
+  height: 12px;
+  background-color: #FF0000;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.music-player-seeker:hover .music-player-seeker-handle {
+  opacity: 1;
+}
+
+.music-player-volume {
+  width: 80px;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.music-player-volume-fill {
+  height: 100%;
+  background-color: #FF0000;
+  border-radius: 2px;
+}
+
+/* スピナースタイル */
+.spinner-green {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 128, 0, 0.2);
+  border-top-color: #008000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {transform: rotate(360deg);}
+}
+
+/* Custom styles for the application */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Loading spinners */
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: #3b82f6;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+.dark .spinner {
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: #60a5fa;
+}
+
+/* Green spinner for Spotify */
+.spinner-green {
+  border: 4px solid rgba(0, 0, 0, 0.05);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border-left-color: #1DB954; /* Spotify green */
+  animation: spin 1s ease-in-out infinite;
+  margin: 0 auto;
+  position: relative;
+}
+
+.dark .spinner-green {
+  border: 4px solid rgba(255, 255, 255, 0.05);
+  border-left-color: #1ED760; /* Brighter Spotify green for dark mode */
+}
+
+.spinner-green::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(29, 185, 84, 0.2); /* Spotify green with opacity */
+  animation: pulse 2s ease-out infinite;
+}
+
+.dark .spinner-green::before {
+  border: 2px solid rgba(30, 215, 96, 0.2); /* Brighter Spotify green with opacity for dark mode */
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* For proxy error overlay */
+iframe:not([src]) + .proxy-error-overlay,
+iframe.error + .proxy-error-overlay {
+  display: flex !important;
+}
+
+/* Ensure iframe loads properly or shows error */
+iframe {
+  min-height: 200px;
+}
+
+/* Handling better error display */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dark .error-container {
+  background-color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Gradient text for emphasis */
+.gradient-text {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+/* Enhance YouTube results display */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fix for vertical text issues */
+h3 span, 
+.collection-title,
+.collection-text,
+*[class*="collection"] {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  display: inline !important;
+  -webkit-writing-mode: horizontal-tb !important;
+  -ms-writing-mode: horizontal-tb !important;
+  text-combine-upright: none !important;
+  text-transform: none !important;
+  transform: none !important;
+  white-space: normal !important;
+  direction: ltr !important;
+  letter-spacing: normal !important;
+  vertical-align: baseline !important;
+}
+
+/* Force horizontal text in specific container */
+.bg-white h3, 
+.bg-white .font-semibold,
+.sidebar-collection {
+  writing-mode: horizontal-tb !important;
+  -webkit-writing-mode: horizontal-tb !important;
+}
+
+/* Custom collection header layout */
+.collection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.collection-header .collection-text {
+  font-weight: 600;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  color: #111827;
+}
+
+.dark .collection-header .collection-text {
+  color: #e5e7eb;
+}
+
+/* Additional override to force horizontal text */
+@supports (-webkit-appearance: none) {
+  .bg-white h3 span, 
+  .collection-text,
+  .sidebar-collection p {
+    writing-mode: horizontal-tb !important;
+    -webkit-writing-mode: horizontal-tb !important;
+    transform: none !important;
+    display: inline !important;
+  }
+}
+
+/* ダークモード強化 - コンポーネント固有の調整 */
+.dark .bg-white {
+  background-color: hsl(var(--card)) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: hsl(var(--card)) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: hsl(var(--muted)) !important;
+}
+
+.dark .text-gray-800 {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .text-gray-700 {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .text-gray-600 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark .text-gray-500 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark .border-gray-200 {
+  border-color: hsl(var(--border)) !important;
+}
+
+.dark .shadow-sm,
+.dark .shadow,
+.dark .shadow-md,
+.dark .shadow-lg {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.4) !important;
+}
+
+/* カード、ボタン、入力フィールドなどの特別調整 */
+.dark .card,
+.dark [class*="card"] {
+  background-color: hsl(var(--card));
+  border-color: hsl(var(--border));
+}
+
+.dark button,
+.dark [role="button"] {
+  --tw-ring-offset-color: hsl(var(--background));
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: hsl(var(--input));
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+/* 特にビデオカードのスタイル調整 */
+.dark .video-card {
+  background-color: hsl(var(--card));
+  border-color: hsl(var(--border));
+}
+
+.dark .video-card:hover {
+  background-color: hsl(var(--accent));
+}
+
+/* dark モード時の特別な強調表示 */
+.dark [data-highlighted="true"],
+.dark .highlighted,
+.dark .active {
+  background-color: hsl(var(--accent));
+  border-color: hsl(var(--ring));
+}
+
+/* アプリケーション固有のダークモード調整 */
+.dark .music-player-controls button {
+  color: hsl(var(--foreground));
+}
+
+.dark .music-player-controls button:hover {
+  color: hsl(var(--primary));
+}
