@@ -10,6 +10,13 @@ curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/
 chmod +x bin/yt-dlp
 export PATH="$PATH:$(pwd)/bin"
 
+# YouTubeのCookieを保存するディレクトリを作成
+echo "Creating directories for cookies and HAR files..."
+mkdir -p har_and_cookies
+touch har_and_cookies/.gitkeep
+# Render環境用の一時Cookie保存ディレクトリも作成（/tmp内は起動時に毎回リセットされるため）
+mkdir -p /tmp/har_and_cookies
+
 # youtube-dl-execのpostinstallスクリプトをバイパスするための環境変数を設定
 echo "Setting up environment to skip youtube-dl-exec postinstall..."
 export YOUTUBE_DL_SKIP_DOWNLOAD=true
