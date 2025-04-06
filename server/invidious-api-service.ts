@@ -10,13 +10,23 @@ import { storage } from './storage';
 import { VideoFormat, VideoDetails, VideoInfo } from './ytdlp-service';
 
 // 利用可能なInvidiousインスタンス一覧（公開されている安定したインスタンス）
+// 2025年4月時点で動作が確認されているインスタンスを優先的に配置
 const INVIDIOUS_INSTANCES = [
-  'https://invidious.snopyta.org',
+  'https://vid.puffyan.us',
+  'https://inv.riverside.rocks',  
+  'https://invidious.fdn.fr',
+  'https://y.com.sb',
+  'https://invidious.slipfox.xyz',
+  'https://yt.artemislena.eu',
+  'https://invidious.privacydev.net',
+  'https://invidious.protokolla.fi',
+  'https://onion.tube',
+  'https://iv.ggtyler.dev',
+  'https://invidious.asir.dev',
+  'https://invidious.sethforprivacy.com',
+  // フォールバック用の古いインスタンス
   'https://yewtu.be',
   'https://invidious.kavin.rocks',
-  'https://vid.puffyan.us',
-  'https://inv.riverside.rocks',
-  'https://invidio.xamh.de',
   'https://invidious.namazso.eu',
   'https://inv.bp.projectsegfau.lt'
 ];
