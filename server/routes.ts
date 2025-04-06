@@ -44,6 +44,7 @@ import { generateProgressivePlayerHtml } from "./templates/progressive-player";
 import { getVideoFormatsWithFallback } from "./fast-video-service";
 import { initSyncService, getSyncInstancesFromEnv, manualSync, setInvalidateCacheFunction, pushPostToSyncInstances, pushCommentToSyncInstances } from "./sync-service";
 import { searchVideosWithInvidious, getTrendingVideosFromInvidious, getVideoInfoFromInvidious } from "./invidious-api-service";
+import { saveCookies } from "./ytdlp-service";
 // GPT関連のインポートは削除されました
 
 // プロキシ機能は削除されましたが、YouTube視聴用のプレーヤーは維持しています
@@ -159,6 +160,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       status: "ok",
       timestamp: new Date().toISOString()
     });
+  });
+  
+  // YouTube Cookieアップロードエンドポイント
+  app.post("/api/youtube/cookies", (req: Request, res: Response) => {
+    try {
+      // リクエストボディからCookieテキストを取得
+      const { cookies } = req.body;
+      
+      if (!cookies || typeof cookies !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: "Cookieデータが不正です。テキスト形式のNetscape Cookie形式を提供してください。"
+        });
+      }
+      
+      // Cookieを保存
+      const saved = saveCookies(cookies);
+      
+      if (saved) {
+        return res.json({
+          success: true,
+          message: "YouTubeのCookieが正常に保存されました。これでボット検出をバイパスできるようになります。"
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          error: "Cookieの保存中にエラーが発生しました。"
+        });
+      }
+    } catch (error) {
+      console.error("Error saving cookies:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Cookieの保存中に予期しないエラーが発生しました。"
+      });
+    }
   });
   
   // 同期サービスのステータスを取得するエンドポイント (中央データベース方式に変更したため、無効)
