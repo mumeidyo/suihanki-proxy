@@ -626,6 +626,94 @@ export default function AdminTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* YouTube Cookieアップロードカード */}
+      <Card>
+        <CardHeader className="bg-purple-50 dark:bg-purple-900/30">
+          <div className="flex items-center">
+            <Key className="h-6 w-6 mr-2 text-purple-500" />
+            <CardTitle>YouTube Cookie設定</CardTitle>
+          </div>
+          <CardDescription>
+            YouTubeの認証Cookieをアップロードしてボットチェックをバイパスします
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md flex items-start">
+            <AlertTriangle className="h-5 w-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium text-blue-700 dark:text-blue-400">YouTube認証について</h3>
+              <p className="text-sm text-blue-600 dark:text-blue-500">
+                YouTubeがボット検出を行っている場合、ここにCookieを設定することでアクセスを回復できます。
+                Cookieは「Netscape Cookie形式」でテキストとして貼り付けてください。
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <Label htmlFor="youtube-cookies" className="block">YouTube Cookies</Label>
+            <textarea
+              id="youtube-cookies"
+              className="w-full min-h-[200px] p-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+              placeholder=".youtube.com\tTRUE\t/\tTRUE\t1742000000\tNAME\tValue..."
+            />
+            <p className="text-xs text-gray-500">
+              Cookieはブラウザの開発者ツールからエクスポートできます。
+              セキュリティ上の理由から、ここにアップロードされたCookieはサーバー側でのみ使用され、
+              他のユーザーと共有されることはありません。
+            </p>
+            <Button
+              className="w-full"
+              onClick={() => {
+                const cookiesText = (document.getElementById('youtube-cookies') as HTMLTextAreaElement)?.value;
+                if (!cookiesText) {
+                  toast({
+                    title: "エラー",
+                    description: "Cookie情報を入力してください",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                fetch('/api/youtube/cookies', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ cookies: cookiesText }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.success) {
+                    toast({
+                      title: "成功",
+                      description: "YouTube Cookieが正常に設定されました",
+                    });
+                    // フォームをクリア
+                    (document.getElementById('youtube-cookies') as HTMLTextAreaElement).value = '';
+                  } else {
+                    toast({
+                      title: "エラー",
+                      description: data.error || "Cookie設定に失敗しました",
+                      variant: "destructive",
+                    });
+                  }
+                })
+                .catch(error => {
+                  console.error('Cookie設定エラー:', error);
+                  toast({
+                    title: "エラー",
+                    description: "Cookie設定中にエラーが発生しました",
+                    variant: "destructive",
+                  });
+                });
+              }}
+            >
+              Cookieを設定する
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
