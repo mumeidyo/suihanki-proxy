@@ -268,6 +268,17 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
     setIsLoading(false);
   };
 
+  // 指定されたURLを直接埋め込むモードへ
+  const embedDirectUrl = () => {
+    if (directUrl) {
+      // 直接URLをvideoタグのsrc属性に設定して再生する
+      // 既に設定されているので確認メッセージだけ表示
+      alert('googlevideo.comの直接URLを使用して再生中です。他の端末でも使用したい場合は右クリックでURLをコピーできます。');
+    } else {
+      alert('直接URLはまだ取得できていません。少し待ってから再試行してください。');
+    }
+  };
+  
   // フルプレイヤーモード
   if (isFullPlayer) {
     return (
@@ -317,6 +328,18 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
             >
               お使いのブラウザは動画の再生をサポートしていません。
             </video>
+            
+            {/* 直接URL情報表示 */}
+            {directUrl && (
+              <div className="absolute bottom-16 right-2 bg-black bg-opacity-70 text-white text-xs p-1 rounded">
+                <button 
+                  onClick={embedDirectUrl}
+                  className="px-2 py-1 bg-blue-600 rounded text-white text-xs"
+                >
+                  URL確認
+                </button>
+              </div>
+            )}
           </div>
 
           <div className={`absolute inset-0 w-full h-full ${!directUrl ? 'block' : 'hidden'}`}>
@@ -485,26 +508,37 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
               {/* ミニプレーヤーでも高速読み込み方式を使用 */}
               {directUrl ? (
                 // 直接URLがある場合はHTML5 videoタグを使用 (高速)
-                <video
-                  className="absolute top-0 left-0 w-full h-full"
-                  src={directUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  data-webkit-playsinline="true"
-                  data-x5-playsinline="true"
-                  data-x5-video-player-type="h5"
-                  data-x5-video-player-fullscreen="true"
-                  preload="auto"
-                  onError={() => {
-                    console.error('Direct URL mini-player error');
-                    setDirectUrl(null);
-                    // エラー時はiframeプレーヤーにフォールバック
-                    if (iframeRef.current) {
-                      iframeRef.current.src = videoProxyUrl;
-                    }
-                  }}
-                />
+                <div className="relative w-full h-full">
+                  <video
+                    className="absolute top-0 left-0 w-full h-full"
+                    src={directUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    data-webkit-playsinline="true"
+                    data-x5-playsinline="true"
+                    data-x5-video-player-type="h5"
+                    data-x5-video-player-fullscreen="true"
+                    preload="auto"
+                    onError={() => {
+                      console.error('Direct URL mini-player error');
+                      setDirectUrl(null);
+                      // エラー時はiframeプレーヤーにフォールバック
+                      if (iframeRef.current) {
+                        iframeRef.current.src = videoProxyUrl;
+                      }
+                    }}
+                  />
+                  {/* 直接URL情報表示 - ミニプレーヤー版 */}
+                  <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white text-xs p-1 rounded z-10">
+                    <button 
+                      onClick={embedDirectUrl}
+                      className="px-2 py-1 bg-blue-600 rounded text-white text-xs"
+                    >
+                      URL確認
+                    </button>
+                  </div>
+                </div>
               ) : (
                 // 直接URLがない場合は従来のiframeプレーヤーを使用
                 <iframe
