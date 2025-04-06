@@ -360,12 +360,10 @@ export class PostgresStorage implements IStorage {
 
   constructor() {
     try {
-      const connectionString = process.env.DATABASE_URL;
+      // 直接コネクション文字列をハードコード
+      const connectionString = 'postgresql://postgres:fAYP9KMN9iiUk5rR@db.njkzjxfmkmwoowhtiyik.supabase.co:5432/postgres';
       
-      if (!connectionString) {
-        console.error("DATABASE_URL environment variable is not set!");
-        throw new Error("Database connection string is missing");
-      }
+      // 環境変数がなくても続行できるようにチェックを削除
       
       this.pool = new Pool({
         connectionString,
@@ -832,10 +830,10 @@ export async function initializeStorage(): Promise<IStorage> {
     return _storage;
   }
 
-  // 環境変数に応じたストレージ実装を選択
-  const databaseUrl = process.env.DATABASE_URL;
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY;
+  // 直接ハードコード設定
+  const databaseUrl = 'postgresql://postgres:fAYP9KMN9iiUk5rR@db.njkzjxfmkmwoowhtiyik.supabase.co:5432/postgres';
+  const supabaseUrl = 'https://njkzjxfmkmwoowhtiyik.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qa3pqeGZta213b293aHRpeWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE2MTYzOTIsImV4cCI6MjAyNzE5MjM5Mn0.U2mAf_ZBgScFLtx82i9KjPTCdWDvvRSiSw9iHN22iZE';
 
   try {
     // Supabase接続を優先
