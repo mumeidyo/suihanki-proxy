@@ -10,7 +10,8 @@ import { getFromCache, saveToCache } from './cache-service';
 import path from 'path';
 
 // yt-dlpバイナリのパス（環境変数から取得するか、フォールバックとして bin/yt-dlp を使用）
-const YT_DLP_PATH = process.env.YT_DLP_PATH || path.join(process.cwd(), 'bin', 'yt-dlp');
+// letを使用して後で変更可能にする
+let YT_DLP_PATH = process.env.YT_DLP_PATH || path.join(process.cwd(), 'bin', 'yt-dlp');
 console.log('Using YT_DLP_PATH:', YT_DLP_PATH);
 
 // キャッシュ時間設定（1時間）
@@ -166,8 +167,7 @@ async function runYtDlp(url: string): Promise<string> {
         for (const altPath of alternativePaths) {
           if (fs.existsSync(altPath)) {
             console.log(`Using alternative yt-dlp path: ${altPath}`);
-            // YT_DLP_PATHを動的に変更
-            // @ts-ignore - 再代入について型チェックを無視
+            // YT_DLP_PATHを動的に変更（letを使用しているので問題なし）
             YT_DLP_PATH = altPath;
             found = true;
             break;
