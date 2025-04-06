@@ -334,7 +334,6 @@ async function runYtDlp(url: string): Promise<string> {
       '--no-playlist',
       '--no-warnings',
       '--no-check-certificate',
-      '--timeout', '30',  // 接続タイムアウト
     ];
     
     // Cookieファイルがある場合は、それを使用
