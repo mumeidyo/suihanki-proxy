@@ -90,46 +90,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ユーザーがBANされているかチェックするミドルウェア（掲示板関連エンドポイント用）
   const checkUserBanned = async (req: Request, res: Response, next: NextFunction) => {
-    // Cookieからバン識別トークンを取得
-    const banToken = req.cookies?.ban_token;
-    
-    // トークンがあり、バンリストに含まれている場合はアクセス拒否
-    if (banToken && bannedTokens.has(banToken)) {
-      return res.status(403).json({
-        success: false,
-        error: "あなたは管理者によって掲示板へのアクセスを禁止されています",
-        banned: true
-      });
-    }
-    
-    // バンされたユーザーIDかチェック（IPアドレスとしてDBに保存されている）
-    const userId = req.query.userId || req.body.authorId;
-    if (userId) {
-      const isBanned = await storage.isIpBanned(String(userId));
-      if (isBanned) {
-        // バントークンがない場合は新たに生成して設定
-        if (!banToken) {
-          const newBanToken = randomBytes(16).toString('hex');
-          bannedTokens.add(newBanToken);
-          
-          // Cookieに保存（1年間有効）
-          res.cookie('ban_token', newBanToken, {
-            maxAge: 365 * 24 * 60 * 60 * 1000, // 1年間
-            httpOnly: true,
-            sameSite: 'strict',
-            path: '/'
-          });
-        }
-        
+    try {
+      // Cookieからバン識別トークンを取得
+      const banToken = req.cookies?.ban_token;
+      
+      // トークンがあり、バンリストに含まれている場合はアクセス拒否
+      if (banToken && bannedTokens.has(banToken)) {
         return res.status(403).json({
           success: false,
           error: "あなたは管理者によって掲示板へのアクセスを禁止されています",
           banned: true
         });
       }
+      
+      // バンされたユーザーIDかチェック（IPアドレスとしてDBに保存されている）
+      const userId = req.query.userId || req.body.authorId;
+      if (userId) {
+        try {
+          const isBanned = await storage.isIpBanned(String(userId));
+          if (isBanned) {
+            // バントークンがない場合は新たに生成して設定
+            if (!banToken) {
+              const newBanToken = randomBytes(16).toString('hex');
+              bannedTokens.add(newBanToken);
+              
+              // Cookieに保存（1年間有効）
+              res.cookie('ban_token', newBanToken, {
+                maxAge: 365 * 24 * 60 * 60 * 1000, // 1年間
+                httpOnly: true,
+                sameSite: 'strict',
+                path: '/'
+              });
+            }
+            
+            return res.status(403).json({
+              success: false,
+              error: "あなたは管理者によって掲示板へのアクセスを禁止されています",
+              banned: true
+            });
+          }
+        } catch (dbError) {
+          // データベース接続エラーが発生した場合はエラーをログに記録するだけで、
+          // ユーザーのアクセスは許可する（より寛容なアプローチ）
+          console.error("バン状態確認中のデータベースエラー:", dbError);
+          console.log("データベース接続エラーのため、ユーザーアクセスを許可します");
+        }
+      }
+      
+      next();
+    } catch (error) {
+      // 予期しないエラーが発生した場合でも、ユーザー体験を妨げないように
+      console.error("checkUserBanned処理中の予期しないエラー:", error);
+      next();
     }
-    
-    next();
   };
   
   // 掲示板関連のルートにミドルウェアを適用
