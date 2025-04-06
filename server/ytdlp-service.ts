@@ -15,16 +15,46 @@ import { getFromCache, saveToCache } from './cache-service';
 import path from 'path';
 import * as fs from 'fs';
 
-// yt-dlpバイナリのパス（環境変数から取得するか、フォールバックとして bin/yt-dlp を使用）
+// yt-dlpバイナリのパス設定（環境に応じて異なるパスを使用）
 // letを使用して後で変更可能にする
-let YT_DLP_PATH = process.env.YT_DLP_PATH || path.join(process.cwd(), 'bin', 'yt-dlp');
+let YT_DLP_PATH = '';
+
+// Render環境の場合は特別なパスを使用
+if (process.env.RENDER === 'true') {
+  // Renderでは.pythonlibsディレクトリ内に配置される
+  YT_DLP_PATH = path.join('/opt/render/project/.pythonlibs/bin/yt-dlp');
+} else if (process.env.YT_DLP_PATH) {
+  // 環境変数が設定されている場合はそれを使用
+  YT_DLP_PATH = process.env.YT_DLP_PATH;
+} else {
+  // デフォルトでプロジェクトディレクトリ内のbinを使用
+  YT_DLP_PATH = path.join(process.cwd(), 'bin', 'yt-dlp');
+}
+
 console.log('Using YT_DLP_PATH:', YT_DLP_PATH);
 
 // デプロイ環境に基づいたCookieディレクトリとファイルパスの設定
-const COOKIES_DIR = 
-  process.env.DEPLOY_ENV === 'render' 
-    ? path.join('/tmp', 'har_and_cookies')  // Render環境では/tmpディレクトリに保存
-    : path.join(process.cwd(), 'har_and_cookies'); // その他の環境ではプロジェクトディレクトリに保存
+let COOKIES_DIR = '';
+
+// Render環境では/tmpディレクトリに保存
+if (process.env.RENDER === 'true') {
+  COOKIES_DIR = path.join('/tmp', 'har_and_cookies');
+  // ディレクトリがなければ作成
+  if (!fs.existsSync(COOKIES_DIR)) {
+    try {
+      fs.mkdirSync(COOKIES_DIR, { recursive: true });
+      console.log(`Created cookies directory for Render: ${COOKIES_DIR}`);
+    } catch (err) {
+      console.error(`Failed to create cookies directory for Render: ${err}`);
+    }
+  }
+} else if (process.env.DEPLOY_ENV === 'render') {
+  // 互換性のために古い変数も確認
+  COOKIES_DIR = path.join('/tmp', 'har_and_cookies');
+} else {
+  // その他の環境ではプロジェクトディレクトリに保存
+  COOKIES_DIR = path.join(process.cwd(), 'har_and_cookies');
+}
 
 const COOKIES_PATH = path.join(COOKIES_DIR, 'youtube_cookies.txt');
 
@@ -235,26 +265,63 @@ async function runYtDlp(url: string): Promise<string> {
         console.error(`yt-dlp binary not found at path: ${YT_DLP_PATH}`);
         // バイナリが見つからない場合のフォールバックパスを探す
         const alternativePaths = [
+          // Render環境のパス
+          '/opt/render/project/.pythonlibs/bin/yt-dlp',
+          // グローバルインストール
           '/usr/bin/yt-dlp',
           '/usr/local/bin/yt-dlp',
+          // Nixpkgs（Replit用）
           '/nix/store/bin/yt-dlp',
+          // Replit環境
           '/home/runner/workspace/.pythonlibs/bin/yt-dlp',
-          path.join(process.cwd(), 'bin', 'yt-dlp.exe'),  // Windows用
+          // 相対パス
+          path.join(process.cwd(), 'bin', 'yt-dlp'),
+          // Windows用
+          path.join(process.cwd(), 'bin', 'yt-dlp.exe'),
+          // システムパス
+          'yt-dlp', // PATHに含まれていればこれで実行できる
         ];
         
         let found = false;
         for (const altPath of alternativePaths) {
-          if (fs.existsSync(altPath)) {
-            console.log(`Using alternative yt-dlp path: ${altPath}`);
-            // YT_DLP_PATHを動的に変更（letを使用しているので問題なし）
-            YT_DLP_PATH = altPath;
-            found = true;
-            break;
+          try {
+            // 特別なケース: 'yt-dlp'だけの場合はwhichコマンドでチェック
+            if (altPath === 'yt-dlp') {
+              const { execSync } = require('child_process');
+              try {
+                // whichコマンドでパスを取得
+                const whichResult = execSync('which yt-dlp', { encoding: 'utf8', timeout: 2000 }).trim();
+                if (whichResult) {
+                  console.log(`Found yt-dlp in PATH at: ${whichResult}`);
+                  YT_DLP_PATH = whichResult;
+                  found = true;
+                  break;
+                }
+              } catch (e) {
+                // whichコマンドが失敗した場合は無視
+                console.log('which command failed, continuing search');
+              }
+              continue;
+            }
+            
+            // 通常のパスチェック
+            if (fs.existsSync(altPath)) {
+              console.log(`Using alternative yt-dlp path: ${altPath}`);
+              // YT_DLP_PATHを動的に変更（letを使用しているので問題なし）
+              YT_DLP_PATH = altPath;
+              found = true;
+              break;
+            }
+          } catch (pathErr) {
+            console.warn(`Error checking alternative path ${altPath}: ${pathErr}`);
           }
         }
         
         if (!found) {
           console.warn('Could not find yt-dlp binary in any expected location');
+          // 最後の手段：システムコマンドとしてyt-dlpを使用
+          YT_DLP_PATH = 'yt-dlp';
+          console.log('Falling back to system command: yt-dlp');
         }
       }
     } catch (err) {
