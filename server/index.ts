@@ -7,29 +7,28 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { type IStorage, initializeStorage, storage } from "./storage";
 
-// Load environment variables from .env file
+
 dotenv.config();
 
-/**
- * SHK (Sui-Han-Ki) Web Proxy implementation for enhanced stability in Replit
- * 
- * This implementation includes system monitoring and resource management
- * to prevent crashes in the Replit environment.
- * 
- * Provides a simple and effective web proxy service focusing on privacy and performance.
- */
 
-// ストレージ初期化ラッパー関数
 export async function initStorage(): Promise<IStorage> {
   console.log('ストレージを初期化中...');
   return await initializeStorage();
 }
 
-// yt-dlpパスをReplit環境に合わせて設定
-process.env.YT_DLP_PATH = "/home/runner/workspace/.pythonlibs/bin/yt-dlp";
-console.log(`Set YT_DLP_PATH to: ${process.env.YT_DLP_PATH}`);
+// yt-dlpパスを環境に合わせて設定
+if (!process.env.YT_DLP_PATH) {
+  // デプロイ環境の判定
+  if (process.env.DEPLOY_ENV === 'render') {
+    process.env.YT_DLP_PATH = "/opt/render/project/python/.pythonlibs/bin/yt-dlp";
+  } else {
+    // Replit環境のデフォルト
+    process.env.YT_DLP_PATH = "/home/runner/workspace/.pythonlibs/bin/yt-dlp";
+  }
+}
+console.log(`Using YT_DLP_PATH: ${process.env.YT_DLP_PATH}`);
 
-// Skip downloading of binaries
+
 process.env.YOUTUBE_DL_SKIP_DOWNLOAD = "true";
 process.env.YT_DLP_SKIP_DOWNLOAD = "true";
 
@@ -38,7 +37,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser()); // Cookieパーサーを追加
 
-// Enhanced request logging middleware
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -113,7 +112,7 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Use environment PORT variable if available, fallback to 5000 (for Replit)
+
   const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 
   // Start system monitoring for stability
@@ -136,19 +135,18 @@ app.use((req, res, next) => {
   server.on('error', (error: Error) => {
     console.error('Server error:', error);
     
-    // Check if we're in production (Render) or development (Replit)
+  
     if (process.env.NODE_ENV === 'production') {
-      // In production, log the error but don't attempt auto-recovery
-      // as this might interfere with Render's own process management
+   
       log('Server error in production environment. Waiting for platform restart.', 'error');
       
-      // In extreme cases, we can exit and let the platform restart us
+
       if (error.message.includes('EADDRINUSE')) {
         log('Port already in use. Exiting for platform-managed restart.', 'error');
         process.exit(1);
       }
     } else {
-      // In development, attempt recovery
+
       setTimeout(() => {
         log('Attempting to recover from server error...', 'recovery');
         server.listen({
