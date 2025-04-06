@@ -94,114 +94,131 @@ export async function getFastVideoFormats(req: Request, res: Response): Promise<
  * 優先度： yt-dlp → Invidious API
  */
 export async function getVideoFormatsWithFallback(videoId: string): Promise<any> {
-  try {
-    // 方法1: yt-dlpを優先使用（より安定しレート制限の影響を受けない）
-    console.log(`Fetching formats for ${videoId} using yt-dlp (primary method)`);
-    const videoInfo = await getVideoInfo(videoId);
+  console.log(`Getting video formats for ${videoId} with fallback mechanisms (parallel fetching)`);
+  
+  // 両方の方法を同時に試みる（レースコンディション）
+  const ytDlpPromise = getVideoInfo(videoId).catch(err => {
+    console.log(`yt-dlp method failed for ${videoId}:`, err.message);
+    return null;
+  });
+  
+  const invidiousPromise = getVideoInfoFromInvidious(videoId).catch(err => {
+    console.log(`Invidious API method failed for ${videoId}:`, err.message);
+    return null;
+  });
+  
+  // 両方のプロミスを実行し、最初に成功したものを使用
+  const [ytDlpResult, invidiousResult] = await Promise.all([
+    ytDlpPromise,
+    invidiousPromise
+  ]);
+  
+  // 結果の選択：yt-dlpを優先
+  let videoInfo = null;
+  let source = '';
+  
+  if (ytDlpResult) {
+    videoInfo = ytDlpResult;
+    source = 'yt-dlp';
+  } else if (invidiousResult) {
+    videoInfo = invidiousResult;
+    source = 'invidious';
+  }
+  
+  if (videoInfo) {
+    console.log(`Successfully retrieved data using ${source} for ${videoId}`);
     
-    // データベースにビデオ情報を保存
-    await saveVideoToDatabase(videoId, videoInfo);
+    // 成功した場合、データベースに保存（オプション）
+    try {
+      await saveVideoToDatabase(videoId, videoInfo);
+    } catch (dbError) {
+      console.error('Failed to save video to database:', dbError);
+      // データベース保存エラーは無視する（致命的ではない）
+    }
     
     return {
       formats: videoInfo.formats,
       videoDetails: videoInfo.videoDetails
     };
-  } catch (ytdlpError) {
-    console.error(`yt-dlp method failed for ${videoId}, falling back to Invidious API:`, ytdlpError);
+  }
+  
+  // 両方の方法が失敗した場合は直接メソッドを試す
+  try {
+    // 方法3: 直接リクエストメソッドを使用（最終手段）
+    console.log(`Fetching formats for ${videoId} using direct method`);
     
-    try {
-      // 方法2: Invidious APIを使用（フォールバック）
-      console.log(`Fetching formats for ${videoId} using Invidious API (fallback)`);
-      const videoInfo = await getVideoInfoFromInvidious(videoId);
-      
-      // データベースにビデオ情報を保存
-      await saveVideoToDatabase(videoId, videoInfo);
-      
-      return {
-        formats: videoInfo.formats,
-        videoDetails: videoInfo.videoDetails
-      };
-    } catch (ytdlError) {
-      console.error(`yt-dlp failed for ${videoId}, falling back to direct method:`, ytdlError);
-      
-      try {
-        // 方法3: 直接リクエストメソッドを使用（最終手段）
-        console.log(`Fetching formats for ${videoId} using direct method`);
-        
-        // 注意: このメソッドは限定的な情報のみを提供します
-        // YouTube動画のメタデータを取得
-        const response = await axios.get(`https://www.youtube.com/watch?v=${videoId}`, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-          }
-        });
-        
-        // タイトルの抽出（シンプルな正規表現）
-        let title = 'YouTube Video';
-        const titleMatch = response.data.match(/<title>([^<]*)<\/title>/);
-        if (titleMatch && titleMatch[1]) {
-          title = titleMatch[1].replace(' - YouTube', '');
-        }
-        
-        // 簡易的なフォーマットリストを生成
-        // 実際の動画URLは提供されず、再生時に別途リクエストが必要になります
-        const formattedFormats = [
-          {
-            url: `https://www.youtube.com/watch?v=${videoId}`, // 実際の直接URLではなく、参照URL
-            mimeType: 'video/mp4',
-            qualityLabel: '720p',
-            hasAudio: true,
-            hasVideo: true,
-            container: 'mp4',
-            contentLength: undefined,
-            bitrate: 1000000,
-            cacheTimestamp: Date.now()
-          },
-          {
-            url: `https://www.youtube.com/watch?v=${videoId}`, // 実際の直接URLではなく、参照URL
-            mimeType: 'video/mp4',
-            qualityLabel: '360p',
-            hasAudio: true,
-            hasVideo: true,
-            container: 'mp4',
-            contentLength: undefined,
-            bitrate: 500000,
-            cacheTimestamp: Date.now()
-          }
-        ];
-        
-        const videoDetails = {
-          title: title,
-          description: '',
-          lengthSeconds: '0',
-          thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-        };
-        
-        // キャッシュに保存（短期間のみ）
-        saveToCache(videoId, formattedFormats, videoDetails);
-        
-        // ビデオ情報をデータベースに保存
-        try {
-          await storage.saveVideo({
-            videoId,
-            title: videoDetails.title,
-            thumbnailUrl: videoDetails.thumbnailUrl,
-            channelTitle: 'YouTube Channel',
-            description: ''
-          });
-        } catch (dbError) {
-          console.error(`Failed to save video ${videoId} to database:`, dbError);
-        }
-        
-        return {
-          formats: formattedFormats,
-          videoDetails
-        };
-      } catch (fallbackError) {
-        console.error(`All methods failed for ${videoId}:`, fallbackError);
-        throw new Error('ビデオ情報の取得に失敗しました。サポートされていないフォーマットか、制限付きコンテンツの可能性があります。');
+    // 注意: このメソッドは限定的な情報のみを提供します
+    // YouTube動画のメタデータを取得
+    const response = await axios.get(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
+    });
+    
+    // タイトルの抽出（シンプルな正規表現）
+    let title = 'YouTube Video';
+    const titleMatch = response.data.match(/<title>([^<]*)<\/title>/);
+    if (titleMatch && titleMatch[1]) {
+      title = titleMatch[1].replace(' - YouTube', '');
     }
+    
+    // 簡易的なフォーマットリストを生成
+    // 実際の動画URLは提供されず、再生時に別途リクエストが必要になります
+    const formattedFormats = [
+      {
+        url: `https://www.youtube.com/watch?v=${videoId}`, // 実際の直接URLではなく、参照URL
+        mimeType: 'video/mp4',
+        qualityLabel: '720p',
+        hasAudio: true,
+        hasVideo: true,
+        container: 'mp4',
+        contentLength: undefined,
+        bitrate: 1000000,
+        cacheTimestamp: Date.now()
+      },
+      {
+        url: `https://www.youtube.com/watch?v=${videoId}`, // 実際の直接URLではなく、参照URL
+        mimeType: 'video/mp4',
+        qualityLabel: '360p',
+        hasAudio: true,
+        hasVideo: true,
+        container: 'mp4',
+        contentLength: undefined,
+        bitrate: 500000,
+        cacheTimestamp: Date.now()
+      }
+    ];
+    
+    const videoDetails = {
+      title: title,
+      description: '',
+      lengthSeconds: '0',
+      thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+    };
+    
+    // キャッシュに保存（短期間のみ）
+    saveToCache(videoId, formattedFormats, videoDetails);
+    
+    // ビデオ情報をデータベースに保存
+    try {
+      await storage.saveVideo({
+        videoId,
+        title: videoDetails.title,
+        thumbnailUrl: videoDetails.thumbnailUrl,
+        channelTitle: 'YouTube Channel',
+        description: ''
+      });
+    } catch (dbError) {
+      console.error(`Failed to save video ${videoId} to database:`, dbError);
+    }
+    
+    return {
+      formats: formattedFormats,
+      videoDetails
+    };
+  } catch (fallbackError) {
+    console.error(`All methods failed for ${videoId}:`, fallbackError);
+    throw new Error('ビデオ情報の取得に失敗しました。サポートされていないフォーマットか、制限付きコンテンツの可能性があります。');
   }
 }
 
