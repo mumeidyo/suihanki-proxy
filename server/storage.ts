@@ -237,7 +237,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.boardComments.values())
       .filter(comment => comment.postId === postId)
       .sort((a, b) => {
-        // 古いコメントを優先
+        // 古いコメントを優先（日付の昇順）
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
         return dateA - dateB;
@@ -260,7 +260,7 @@ export class MemStorage implements IStorage {
     }
   }
   
- 
+  // ユーザー権限関連のメソッド実装
   async getUserRole(userId: string): Promise<{ role: string } | undefined> {
     const userRole = this.userRoles.get(userId);
     return userRole ? { role: userRole.role } : undefined;
@@ -280,7 +280,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.userRoles.values());
   }
 
-  // BanIPアドレス関連のメソッド実装
+  // 禁止IPアドレス関連のメソッド実装
   async getBannedIp(ipAddress: string): Promise<BannedIp | undefined> {
     return this.bannedIps.get(ipAddress);
   }
@@ -619,7 +619,7 @@ export class PostgresStorage implements IStorage {
     }
   }
   
-
+  // ユーザー権限関連のメソッド実装（PostgreSQL）
   async getUserRole(userId: string): Promise<{ role: string } | undefined> {
     try {
       const results = await this.db
@@ -640,11 +640,11 @@ export class PostgresStorage implements IStorage {
     try {
       console.log(`サーバー (PostgreSQL): ユーザー権限を保存します - ${data.userId}: ${data.role}`);
       
-      
+      // Check if role exists
       const existing = await this.getUserRole(data.userId);
       
       if (existing) {
-        
+        // Update existing role
         await this.db
           .update(userRoles)
           .set({ 
@@ -653,7 +653,7 @@ export class PostgresStorage implements IStorage {
           })
           .where(eq(userRoles.userId, data.userId));
       } else {
-        
+        // Insert new role
         await this.db.insert(userRoles).values({
           userId: data.userId,
           role: data.role,
@@ -691,7 +691,7 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  
+  // 禁止IPアドレス関連のメソッド実装（PostgreSQL）
   async getBannedIp(ipAddress: string): Promise<BannedIp | undefined> {
     try {
       const results = await this.db
@@ -852,7 +852,7 @@ export class PostgresStorage implements IStorage {
   }
 }
 
-
+// Initialize and export the storage
 // プライベート変数 - モジュール内部のストレージインスタンス
 let _storage: IStorage;
 
@@ -866,18 +866,20 @@ export async function initializeStorage(): Promise<IStorage> {
     return _storage;
   }
 
- 
+  // 直接ハードコード設定
   const databaseUrl = 'postgresql://postgres:fAYP9KMN9iiUk5rR@db.njkzjxfmkmwoowhtiyik.supabase.co:5432/postgres';
   const supabaseUrl = 'https://njkzjxfmkmwoowhtiyik.supabase.co';
   const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qa3pqeGZta213b293aHRpeWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE2MTYzOTIsImV4cCI6MjAyNzE5MjM5Mn0.U2mAf_ZBgScFLtx82i9KjPTCdWDvvRSiSw9iHN22iZE';
 
   try {
+    // DNSの事前テスト - db.njkzjxfmkmwoowhtiyik.supabase.coをpingで確認
     try {
       console.log('データベースホストの疎通性をチェックしています...');
       const { exec } = require('child_process');
       
       const checkDns = () => {
         return new Promise((resolve, reject) => {
+          // DNSリゾルーションをテストするだけのシンプルなリクエスト
           const dns = require('dns');
           dns.lookup('db.njkzjxfmkmwoowhtiyik.supabase.co', (err, address) => {
             if (err) {
