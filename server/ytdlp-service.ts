@@ -82,36 +82,65 @@ export async function getVideoInfo(videoId: string): Promise<VideoInfo> {
   console.log(`Fetching video info for ${videoId} using yt-dlp`);
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   
-  try {
-    const rawInfo = await runYtDlp(url);
-    if (!rawInfo) {
-      throw new Error('Failed to get video info from yt-dlp');
+  // 複数回リトライする
+  const maxRetries = 3;
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`Retry attempt ${attempt}/${maxRetries} for video ${videoId}`);
+      }
+      
+      const rawInfo = await runYtDlp(url);
+      if (!rawInfo) {
+        throw new Error('Failed to get video info from yt-dlp');
+      }
+      
+      // パースして必要な情報を抽出
+      const info = JSON.parse(rawInfo);
+      
+      // フォーマット情報を変換
+      const formats = convertFormats(info.formats || []);
+      
+      // URLがない場合はスキップ (有効なフォーマットを確認)
+      if (formats.length === 0) {
+        console.warn(`No valid formats found for video ${videoId}`);
+        throw new Error('No valid streaming formats available');
+      }
+      
+      // 動画詳細情報を変換
+      const videoDetails: VideoDetails = {
+        title: info.title || 'Unknown Title',
+        description: info.description || '',
+        lengthSeconds: info.duration?.toString() || '0',
+        thumbnailUrl: info.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        channelTitle: info.channel || 'Unknown Channel',
+        viewCount: info.view_count?.toString() || '0'
+      };
+      
+      // キャッシュに保存
+      saveToCache(videoId, formats, videoDetails);
+      
+      return { formats, videoDetails };
+    } catch (error) {
+      console.error(`Error fetching video info for ${videoId} (attempt ${attempt}/${maxRetries}):`, error);
+      lastError = error;
+      
+      // リトライ前に少し待機 (徐々に増加するバックオフ)
+      if (attempt < maxRetries) {
+        const backoffMs = 1000 * Math.pow(2, attempt - 1); // 1秒, 2秒, 4秒...
+        console.log(`Waiting ${backoffMs}ms before next retry...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
     }
-    
-    // パースして必要な情報を抽出
-    const info = JSON.parse(rawInfo);
-    
-    // フォーマット情報を変換
-    const formats = convertFormats(info.formats || []);
-    
-    // 動画詳細情報を変換
-    const videoDetails: VideoDetails = {
-      title: info.title || 'Unknown Title',
-      description: info.description || '',
-      lengthSeconds: info.duration?.toString() || '0',
-      thumbnailUrl: info.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-      channelTitle: info.channel || 'Unknown Channel',
-      viewCount: info.view_count?.toString() || '0'
-    };
-    
-    // キャッシュに保存
-    saveToCache(videoId, formats, videoDetails);
-    
-    return { formats, videoDetails };
-  } catch (error) {
-    console.error(`Error fetching video info for ${videoId}:`, error);
-    throw error;
   }
+  
+  // すべてのリトライが失敗した場合
+  console.error(`All ${maxRetries} attempts failed for video ${videoId}`);
+  
+  // フォールバック: ダミーデータを返さず、最後のエラーをスローして上位層に伝播させる
+  throw lastError || new Error(`Failed to fetch video info for ${videoId} after ${maxRetries} attempts`);
 }
 
 /**
@@ -119,18 +148,55 @@ export async function getVideoInfo(videoId: string): Promise<VideoInfo> {
  */
 async function runYtDlp(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    // yt-dlpバイナリの存在を確認
+    try {
+      const fs = require('fs');
+      if (!fs.existsSync(YT_DLP_PATH)) {
+        console.error(`yt-dlp binary not found at path: ${YT_DLP_PATH}`);
+        // バイナリが見つからない場合のフォールバックパスを探す
+        const alternativePaths = [
+          '/usr/bin/yt-dlp',
+          '/usr/local/bin/yt-dlp',
+          '/nix/store/bin/yt-dlp',
+          '/home/runner/workspace/.pythonlibs/bin/yt-dlp',
+          path.join(process.cwd(), 'bin', 'yt-dlp.exe'),  // Windows用
+        ];
+        
+        let found = false;
+        for (const altPath of alternativePaths) {
+          if (fs.existsSync(altPath)) {
+            console.log(`Using alternative yt-dlp path: ${altPath}`);
+            // YT_DLP_PATHを動的に変更
+            // @ts-ignore - 再代入について型チェックを無視
+            YT_DLP_PATH = altPath;
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          console.warn('Could not find yt-dlp binary in any expected location');
+        }
+      }
+    } catch (err) {
+      console.warn(`Error checking yt-dlp binary: ${err}`);
+    }
+    
     const args = [
       '--dump-json',
       '--no-playlist',
       '--no-warnings',
       '--no-check-certificate',
+      '--timeout', '30',  // 接続タイムアウト
       url
     ];
     
-    // yt-dlpの存在を確認
+    // yt-dlpバージョンの確認 (診断用)
     try {
       const { execSync } = require('child_process');
-      const yt_dlp_version = execSync(`${process.env.YT_DLP_PATH} --version`, { encoding: 'utf8' }).trim();
+      const versionCommand = `${YT_DLP_PATH} --version`;
+      console.log(`Checking yt-dlp version with command: ${versionCommand}`);
+      const yt_dlp_version = execSync(versionCommand, { encoding: 'utf8', timeout: 5000 }).trim();
       console.log(`yt-dlp version: ${yt_dlp_version}`);
     } catch (e) {
       console.warn(`Could not verify yt-dlp version: ${e.message}`);
@@ -138,39 +204,73 @@ async function runYtDlp(url: string): Promise<string> {
     
     console.log(`Running command: ${YT_DLP_PATH} ${args.join(' ')}`);
     
-    const process = spawn(YT_DLP_PATH, args);
+    let childProcess: any;
+    try {
+      childProcess = spawn(YT_DLP_PATH, args);
+    } catch (spawnError) {
+      console.error('Critical error spawning yt-dlp process:', spawnError);
+      reject(spawnError);
+      return;
+    }
+    
+    if (!childProcess || !childProcess.stdout || !childProcess.stderr) {
+      console.error('Failed to create valid child process');
+      reject(new Error('Failed to create valid yt-dlp process'));
+      return;
+    }
+    
     let stdout = '';
     let stderr = '';
     
-    process.stdout.on('data', (data) => {
+    childProcess.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
     
-    process.stderr.on('data', (data) => {
+    childProcess.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
     
-    process.on('close', (code) => {
+    childProcess.on('close', (code: number | null) => {
       if (code === 0) {
-        resolve(stdout);
+        // 結果の検証
+        try {
+          if (!stdout || stdout.trim() === '') {
+            console.warn('yt-dlp returned empty output with success code');
+            reject(new Error('yt-dlp returned empty result'));
+            return;
+          }
+          
+          // JSONとして解析可能か確認
+          JSON.parse(stdout);
+          resolve(stdout);
+        } catch (jsonError) {
+          console.error('Failed to parse yt-dlp output as JSON:', jsonError);
+          console.log('Output was:', stdout.substring(0, 200) + '...');
+          reject(new Error(`Invalid JSON output from yt-dlp: ${jsonError.message}`));
+        }
       } else {
         console.error(`yt-dlp exited with code ${code}. Error: ${stderr}`);
         reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
       }
     });
     
-    process.on('error', (err) => {
-      console.error('Failed to start yt-dlp process:', err);
+    childProcess.on('error', (err: Error) => {
+      console.error('Failed to start or communicate with yt-dlp process:', err);
       reject(err);
     });
     
-    // 30秒のタイムアウト設定
+    // 45秒のタイムアウト設定 (より長めに)
     const timeout = setTimeout(() => {
-      process.kill();
-      reject(new Error('yt-dlp process timed out after 30 seconds'));
-    }, 30000);
+      try {
+        console.warn('yt-dlp process timed out after 45 seconds, killing process');
+        childProcess.kill('SIGTERM');
+      } catch (killError) {
+        console.error('Error killing timed out process:', killError);
+      }
+      reject(new Error('yt-dlp process timed out after 45 seconds'));
+    }, 45000);
     
-    process.on('close', () => {
+    childProcess.on('close', () => {
       clearTimeout(timeout);
     });
   });
