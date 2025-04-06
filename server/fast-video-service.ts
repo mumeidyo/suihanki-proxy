@@ -91,12 +91,13 @@ export async function getFastVideoFormats(req: Request, res: Response): Promise<
 
 /**
  * ビデオフォーマットを複数の方法で取得する（フォールバック機能付き）
+ * 優先度： yt-dlp → Invidious API
  */
 export async function getVideoFormatsWithFallback(videoId: string): Promise<any> {
   try {
-    // 方法1: Invidious APIを使用（より安定した公開API）
-    console.log(`Fetching formats for ${videoId} using Invidious API`);
-    const videoInfo = await getVideoInfoFromInvidious(videoId);
+    // 方法1: yt-dlpを優先使用（より安定しレート制限の影響を受けない）
+    console.log(`Fetching formats for ${videoId} using yt-dlp (primary method)`);
+    const videoInfo = await getVideoInfo(videoId);
     
     // データベースにビデオ情報を保存
     await saveVideoToDatabase(videoId, videoInfo);
@@ -105,13 +106,13 @@ export async function getVideoFormatsWithFallback(videoId: string): Promise<any>
       formats: videoInfo.formats,
       videoDetails: videoInfo.videoDetails
     };
-  } catch (invidiousError) {
-    console.error(`Invidious API failed for ${videoId}, falling back to yt-dlp method:`, invidiousError);
+  } catch (ytdlpError) {
+    console.error(`yt-dlp method failed for ${videoId}, falling back to Invidious API:`, ytdlpError);
     
     try {
-      // 方法2: yt-dlpを使用（フォールバック）
-      console.log(`Fetching formats for ${videoId} using yt-dlp`);
-      const videoInfo = await getVideoInfo(videoId);
+      // 方法2: Invidious APIを使用（フォールバック）
+      console.log(`Fetching formats for ${videoId} using Invidious API (fallback)`);
+      const videoInfo = await getVideoInfoFromInvidious(videoId);
       
       // データベースにビデオ情報を保存
       await saveVideoToDatabase(videoId, videoInfo);
