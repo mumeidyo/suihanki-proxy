@@ -27,6 +27,8 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
   const [playbackError, setPlaybackError] = useState(false);
   const [isFullPlayer, setIsFullPlayer] = useState(false);
   const [directUrl, setDirectUrl] = useState<string | null>(null);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
@@ -74,6 +76,7 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
       
       if (isMountedCheck() && data && data.source && data.source.url) {
         onSuccess(data.source.url);
+        console.log("Direct URL set successfully:", data.source.url.substring(0, 100) + "...");
       }
     } catch (error) {
       // AbortErrorは正常なキャンセルなのでエラーとして扱わない
@@ -94,6 +97,8 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
       // 最初に状態をリセット（ただし直接URLはリセットしない）
       setIsLoading(true);
       setPlaybackError(false);
+      setVideoLoaded(false);
+      setVideoError(false);
       
       // すぐにローディングを終了して次のビデオの準備をする
       const loadingTimer = setTimeout(() => {
@@ -219,6 +224,8 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
     // Reload the iframe
     setPlaybackError(false);
     setIsLoading(true);
+    setVideoLoaded(false);
+    setVideoError(false);
     
     // Add a random query parameter to force reload
     if (iframeRef.current) {
@@ -243,7 +250,7 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
       .then(data => {
         if (data && data.source && data.source.url) {
           setDirectUrl(data.source.url);
-          console.log('Updated direct URL after refresh');
+          console.log('Updated direct URL after refresh:', data.source.url.substring(0, 100) + "...");
         }
       })
       .catch(error => {
@@ -312,7 +319,7 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
             <video
               ref={videoRef}
               src={directUrl || ''}
-              className="w-full h-full"
+              className="w-full h-full object-contain"
               controls
               autoPlay
               playsInline
@@ -321,8 +328,15 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
               data-x5-video-player-type="h5"
               data-x5-video-player-fullscreen="true"
               preload="auto"
-              onError={() => {
-                console.error('Direct URL playback error');
+              onLoadedData={() => {
+                console.log('Video loaded successfully');
+                setVideoLoaded(true);
+                setVideoError(false);
+              }}
+              onError={(e) => {
+                console.error('Direct URL playback error:', e);
+                setVideoError(true);
+                setVideoLoaded(false);
                 setDirectUrl(null);
               }}
             >
@@ -504,13 +518,13 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
               </div>
             </div>
           ) : (
-            <>
+            <div className="absolute top-0 left-0 w-full h-full">
               {/* ミニプレーヤーでも高速読み込み方式を使用 */}
               {directUrl ? (
                 // 直接URLがある場合はHTML5 videoタグを使用 (高速)
-                <div className="relative w-full h-full">
+                <div className="relative w-full h-full bg-black">
                   <video
-                    className="absolute top-0 left-0 w-full h-full"
+                    className="absolute top-0 left-0 w-full h-full object-contain"
                     src={directUrl}
                     controls
                     autoPlay
@@ -520,8 +534,15 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
                     data-x5-video-player-type="h5"
                     data-x5-video-player-fullscreen="true"
                     preload="auto"
+                    onLoadedData={() => {
+                      console.log('Mini player video loaded successfully');
+                      setVideoLoaded(true);
+                      setVideoError(false);
+                    }}
                     onError={() => {
                       console.error('Direct URL mini-player error');
+                      setVideoError(true);
+                      setVideoLoaded(false);
                       setDirectUrl(null);
                       // エラー時はiframeプレーヤーにフォールバック
                       if (iframeRef.current) {
@@ -543,160 +564,60 @@ export default function VideoPlayer({ videoId, onDownload }: VideoPlayerProps): 
                 // 直接URLがない場合は従来のiframeプレーヤーを使用
                 <iframe
                   ref={iframeRef}
-                  className="absolute top-0 left-0 w-full h-full"
                   src={videoProxyUrl}
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  className="absolute top-0 left-0 w-full h-full"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   onError={handleIframeError}
                 ></iframe>
               )}
-              <div className="proxy-error-overlay absolute top-0 left-0 w-full h-full hidden items-center justify-center bg-neutral-800/90 z-10">
-                <div className="text-center p-4">
-                  <div className="text-red-400 mb-2 text-5xl">😕</div>
-                  <h3 className="text-white text-lg mb-2">読み込みエラー</h3>
-                  <p className="text-white/70 mb-4 text-sm">動画の読み込みに失敗しました。</p>
-                  <div className="flex space-x-2 justify-center">
-                    <Button 
-                      variant="outline" 
-                      onClick={handleRefresh}
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-1" />もう一度試す
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                        >
-                          <Download className="h-4 w-4 mr-1" />ダウンロード
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>動画をダウンロード</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuGroup>
-                          <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '1080p')}>
-                            <span>1080p (高画質)</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '720p')}>
-                            <span>720p (標準画質)</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '480p')}>
-                            <span>480p (低画質)</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '360p')}>
-                            <span>360p (最低画質)</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                        
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>音声のみをダウンロード</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        
-                        <DropdownMenuItem onClick={() => handleDirectDownload('mp3', '320')}>
-                          <span>MP3 - 320kbps (高音質)</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDirectDownload('mp3', '128')}>
-                          <span>MP3 - 128kbps (標準音質)</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+              
+              {/* 拡大ボタン - 全画面プレーヤーへの切り替え */}
+              <button
+                onClick={handleOpenFullPlayer}
+                className="absolute bottom-2 right-2 bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded"
+              >
+                <Maximize className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {videoInfo && (
+          <div className="p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-medium">{videoInfo.title}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {videoInfo.viewCount && (
+                    <span className="mr-2">再生回数 {parseInt(videoInfo.viewCount).toLocaleString()}</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="default" 
+                  onClick={() => onDownload(videoId)}
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-1" />ダウンロード
+                </Button>
+              </div>
+            </div>
+            
+            {/* 動画情報 */}
+            <div className="mt-4">
+              <div className="flex items-center">
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <span className="font-medium">{videoInfo.channelTitle}</span>
+                  </p>
                 </div>
               </div>
-              
-              {/* プレビュー上にはフルスクリーンボタンを表示しない（二重表示防止） */}
-            </>
-          )}
-        </div>
-        <div className="p-4">
-          <h2 className="font-medium text-lg mb-2">{videoInfo?.title}</h2>
-          <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
-            <div>
-              <p className="text-gray-600">{videoInfo?.channelTitle}</p>
-              <div className="text-sm text-gray-500">
-                {videoInfo?.viewCount && `${parseInt(videoInfo.viewCount).toLocaleString()} 回視聴`} 
-                {videoInfo?.publishedAt && ` • ${formatPublishedDate(videoInfo.publishedAt)}`}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="default" 
-                size="sm"
-                onClick={() => openUrl(`/api/youtube/proxy-player/${videoId}?autoplay=1`)}
-              >
-                <Play className="h-4 w-4 mr-1" />別タブで開く
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                  >
-                    <Download className="h-4 w-4 mr-1" />ダウンロード
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>動画をダウンロード</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '1080p')}>
-                      <Check className="mr-2 h-4 w-4 text-green-500 opacity-0" />
-                      <span>1080p (高画質)</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '720p')}>
-                      <Check className="mr-2 h-4 w-4 text-green-500 opacity-0" />
-                      <span>720p (標準画質)</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '480p')}>
-                      <Check className="mr-2 h-4 w-4 text-green-500 opacity-0" />
-                      <span>480p (低画質)</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDirectDownload('mp4', '360p')}>
-                      <Check className="mr-2 h-4 w-4 text-green-500 opacity-0" />
-                      <span>360p (最低画質)</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>音声のみをダウンロード</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  
-                  <DropdownMenuItem onClick={() => handleDirectDownload('mp3', '320')}>
-                    <Check className="mr-2 h-4 w-4 text-green-500 opacity-0" />
-                    <span>MP3 - 320kbps (高音質)</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleDirectDownload('mp3', '128')}>
-                    <Check className="mr-2 h-4 w-4 text-green-500 opacity-0" />
-                    <span>MP3 - 128kbps (標準音質)</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={openAndroidPlayer}
-              >
-                <Smartphone className="h-4 w-4 mr-1" />Android再生
-              </Button>
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={handleShare}
-              >
-                <Share className="h-4 w-4 mr-1" />共有
-              </Button>
             </div>
           </div>
-          {videoInfo?.description && (
-            <div className="border-t pt-3">
-              <p className="text-gray-700 whitespace-pre-line line-clamp-3">
-                {videoInfo.description}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
       </Card>
     </div>
   );
