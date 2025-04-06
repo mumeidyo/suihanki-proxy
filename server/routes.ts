@@ -1526,6 +1526,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // 直接URLを埋め込むためのエンドポイント
+  app.get("/api/youtube/embed-direct-url", (req: Request, res: Response) => {
+    const url = req.query.url as string;
+    
+    if (!url) {
+      return res.status(400).send("URLパラメータが必要です");
+    }
+    
+    // URLのバリデーション(googlevideo.comドメインのみを許可)
+    if (!url.includes('googlevideo.com')) {
+      return res.status(400).send("許可されていないURLドメインです");
+    }
+    
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>直接URL埋め込み</title>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        video { width: 100%; height: 100vh; object-fit: contain; }
+      </style>
+    </head>
+    <body>
+      <video controls autoplay>
+        <source src="${url}" type="video/mp4">
+        お使いのブラウザは動画の再生に対応していません。
+      </video>
+    </body>
+    </html>`;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+  
   // 超高速プレーヤーエンドポイント - この新しいエンドポイントを使うと動画の読み込みが最速になります
   app.get("/api/youtube/superfast/:videoId", async (req: Request, res: Response) => {
     const { videoId } = req.params;
