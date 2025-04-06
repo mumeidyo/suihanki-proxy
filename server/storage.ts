@@ -360,10 +360,10 @@ export class PostgresStorage implements IStorage {
 
   constructor() {
     try {
-      // 直接コネクション文字列をハードコード
-      const connectionString = 'postgresql://postgres:fAYP9KMN9iiUk5rR@db.njkzjxfmkmwoowhtiyik.supabase.co:5432/postgres';
+      // 環境変数からDB接続文字列を取得、またはハードコード値をバックアップとして使用
+      const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
       
-      // 環境変数がなくても続行できるようにチェックを削除
+      console.log('データベース接続を試みます...');
       
       this.pool = new Pool({
         connectionString,
@@ -866,10 +866,10 @@ export async function initializeStorage(): Promise<IStorage> {
     return _storage;
   }
 
-  // 直接ハードコード設定
-  const databaseUrl = 'postgresql://postgres:fAYP9KMN9iiUk5rR@db.njkzjxfmkmwoowhtiyik.supabase.co:5432/postgres';
-  const supabaseUrl = 'https://njkzjxfmkmwoowhtiyik.supabase.co';
-  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qa3pqeGZta213b293aHRpeWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE2MTYzOTIsImV4cCI6MjAyNzE5MjM5Mn0.U2mAf_ZBgScFLtx82i9KjPTCdWDvvRSiSw9iHN22iZE';
+  // 環境変数から接続情報を取得、またはデフォルト値を使用
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://njkzjxfmkmwoowhtiyik.supabase.co';
+  const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qa3pqeGZta213b293aHRpeWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE2MTYzOTIsImV4cCI6MjAyNzE5MjM5Mn0.U2mAf_ZBgScFLtx82i9KjPTCdWDvvRSiSw9iHN22iZE';
 
   try {
     // DNSの事前テスト - db.njkzjxfmkmwoowhtiyik.supabase.coをpingで確認
@@ -879,31 +879,51 @@ export async function initializeStorage(): Promise<IStorage> {
       
       const checkDns = () => {
         return new Promise((resolve, reject) => {
+          // 接続文字列からホスト名を抽出する
+          let hostname = 'localhost';
+          try {
+            // 接続文字列からホスト名を抽出
+            const urlMatch = databaseUrl.match(/@([^:]+):/);
+            if (urlMatch && urlMatch[1]) {
+              hostname = urlMatch[1];
+              console.log(`接続文字列から抽出したホスト名: ${hostname}`);
+            } else {
+              console.warn('接続文字列からホスト名を抽出できませんでした。デフォルトのlocalhost使用します。');
+            }
+          } catch (parseError) {
+            console.error('ホスト名の解析エラー:', parseError);
+          }
+          
           // DNSリゾルーションをテストするだけのシンプルなリクエスト
           const dns = require('dns');
-          dns.lookup('db.njkzjxfmkmwoowhtiyik.supabase.co', (err, address) => {
+          dns.lookup(hostname, (err, address) => {
             if (err) {
-              console.error('DNSリゾルーションエラー:', err);
+              console.error(`DNSリゾルーションエラー (${hostname}):`, err);
               if (err.code === 'ENOTFOUND') {
                 console.log('ホスト名が見つかりません。DNSの問題が考えられます。');
               }
               reject(err);
             } else {
-              console.log(`ホスト名が正常に解決されました: ${address}`);
+              console.log(`ホスト名 ${hostname} が正常に解決されました: ${address}`);
               resolve(address);
             }
           });
         });
       };
       
-      try {
-        await checkDns();
-      } catch (dnsError) {
-        console.warn('DNSリゾルーション問題が検出されました - メモリストレージを使用します');
-        console.warn('デプロイ環境などでDNS問題が発生する場合は、接続文字列を変更する必要があるかもしれません');
-        
-        _storage = new MemStorage();
-        return _storage;
+      // デプロイ環境では冗長なDNSチェックをスキップ
+      if (process.env.DEPLOY_ENV === 'render') {
+        console.log('Render環境では事前DNSチェックをスキップします');
+      } else {
+        try {
+          await checkDns();
+        } catch (dnsError) {
+          console.warn('DNSリゾルーション問題が検出されました - メモリストレージを使用します');
+          console.warn('デプロイ環境などでDNS問題が発生する場合は、接続文字列を変更する必要があるかもしれません');
+          
+          _storage = new MemStorage();
+          return _storage;
+        }
       }
     } catch (pingError) {
       console.error('DNSチェック中にエラーが発生しました:', pingError);
