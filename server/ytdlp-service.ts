@@ -33,7 +33,19 @@ const COOKIES_PATH = path.join(COOKIES_DIR, 'youtube_cookies.txt');
  */
 function hasCookiesFile(): boolean {
   try {
-    return fs.existsSync(COOKIES_PATH);
+    const exists = fs.existsSync(COOKIES_PATH);
+    if (exists) {
+      // ファイルサイズも確認（空でないか）
+      const stats = fs.statSync(COOKIES_PATH);
+      if (stats.size < 10) { // 最小サイズ
+        console.warn('Cookie file exists but is too small (possibly empty or corrupted):', COOKIES_PATH);
+        return false;
+      }
+      console.log(`Cookie file exists and valid: ${COOKIES_PATH} (${stats.size} bytes)`);
+    } else {
+      console.warn('Cookie file does not exist:', COOKIES_PATH);
+    }
+    return exists;
   } catch (error) {
     console.warn('Cookie file check failed:', error);
     return false;
@@ -45,16 +57,36 @@ function hasCookiesFile(): boolean {
  */
 export function saveCookies(cookieContent: string): boolean {
   try {
+    if (!cookieContent || cookieContent.trim().length < 10) {
+      console.error('Invalid cookie content: too short or empty');
+      return false;
+    }
+
+    // クッキー形式を検証
+    if (!cookieContent.includes('.youtube.com')) {
+      console.warn('Warning: Cookie content does not contain .youtube.com domain, it may not be valid');
+    }
+
     // har_and_cookiesディレクトリが存在することを確認
     const dir = path.dirname(COOKIES_PATH);
     if (!fs.existsSync(dir)) {
+      console.log(`Creating cookies directory: ${dir}`);
       fs.mkdirSync(dir, { recursive: true });
     }
     
     // Cookieファイルを保存
     fs.writeFileSync(COOKIES_PATH, cookieContent);
-    console.log(`Cookies saved to ${COOKIES_PATH}`);
-    return true;
+    console.log(`Cookies saved to ${COOKIES_PATH} (${cookieContent.length} bytes)`);
+    
+    // 保存されていることを確認
+    if (fs.existsSync(COOKIES_PATH)) {
+      const stats = fs.statSync(COOKIES_PATH);
+      console.log(`Verified cookie file saved: ${stats.size} bytes`);
+      return true;
+    } else {
+      console.error('Cookie file was not saved properly');
+      return false;
+    }
   } catch (error) {
     console.error('Failed to save cookies:', error);
     return false;
@@ -256,8 +288,8 @@ async function runYtDlp(url: string): Promise<string> {
       console.log(`Checking yt-dlp version with command: ${versionCommand}`);
       const yt_dlp_version = execSync(versionCommand, { encoding: 'utf8', timeout: 5000 }).trim();
       console.log(`yt-dlp version: ${yt_dlp_version}`);
-    } catch (e) {
-      console.warn(`Could not verify yt-dlp version: ${e.message}`);
+    } catch (e: any) {
+      console.warn(`Could not verify yt-dlp version: ${e.message || 'Unknown error'}`);
     }
     
     console.log(`Running command: ${YT_DLP_PATH} ${args.join(' ')}`);
@@ -301,10 +333,10 @@ async function runYtDlp(url: string): Promise<string> {
           // JSONとして解析可能か確認
           JSON.parse(stdout);
           resolve(stdout);
-        } catch (jsonError) {
+        } catch (jsonError: any) {
           console.error('Failed to parse yt-dlp output as JSON:', jsonError);
           console.log('Output was:', stdout.substring(0, 200) + '...');
-          reject(new Error(`Invalid JSON output from yt-dlp: ${jsonError.message}`));
+          reject(new Error(`Invalid JSON output from yt-dlp: ${jsonError.message || 'Parse error'}`));
         }
       } else {
         console.error(`yt-dlp exited with code ${code}. Error: ${stderr}`);
