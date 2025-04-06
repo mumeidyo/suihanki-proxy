@@ -237,7 +237,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.boardComments.values())
       .filter(comment => comment.postId === postId)
       .sort((a, b) => {
-        // 古いコメントを優先（日付の昇順）
+        // 古いコメントを優先
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
         return dateA - dateB;
@@ -260,7 +260,7 @@ export class MemStorage implements IStorage {
     }
   }
   
-  // ユーザー権限関連のメソッド実装
+ 
   async getUserRole(userId: string): Promise<{ role: string } | undefined> {
     const userRole = this.userRoles.get(userId);
     return userRole ? { role: userRole.role } : undefined;
@@ -280,7 +280,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.userRoles.values());
   }
 
-  // 禁止IPアドレス関連のメソッド実装
+  // BanIPアドレス関連のメソッド実装
   async getBannedIp(ipAddress: string): Promise<BannedIp | undefined> {
     return this.bannedIps.get(ipAddress);
   }
@@ -367,6 +367,10 @@ export class PostgresStorage implements IStorage {
       
       this.pool = new Pool({
         connectionString,
+        // DNSルックアップタイムアウトを短く設定
+        connectionTimeoutMillis: 5000,
+        // 接続失敗後の再試行なし
+        max: 3
       });
       
       this.db = drizzle(this.pool);
@@ -615,7 +619,7 @@ export class PostgresStorage implements IStorage {
     }
   }
   
-  // ユーザー権限関連のメソッド実装（PostgreSQL）
+
   async getUserRole(userId: string): Promise<{ role: string } | undefined> {
     try {
       const results = await this.db
@@ -636,11 +640,11 @@ export class PostgresStorage implements IStorage {
     try {
       console.log(`サーバー (PostgreSQL): ユーザー権限を保存します - ${data.userId}: ${data.role}`);
       
-      // Check if role exists
+      
       const existing = await this.getUserRole(data.userId);
       
       if (existing) {
-        // Update existing role
+        
         await this.db
           .update(userRoles)
           .set({ 
@@ -649,7 +653,7 @@ export class PostgresStorage implements IStorage {
           })
           .where(eq(userRoles.userId, data.userId));
       } else {
-        // Insert new role
+        
         await this.db.insert(userRoles).values({
           userId: data.userId,
           role: data.role,
@@ -687,7 +691,7 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  // 禁止IPアドレス関連のメソッド実装（PostgreSQL）
+  
   async getBannedIp(ipAddress: string): Promise<BannedIp | undefined> {
     try {
       const results = await this.db
@@ -785,38 +789,70 @@ export class PostgresStorage implements IStorage {
   // IPアドレスが禁止されているかチェック（期限切れも考慮）
   async isIpBanned(ipAddress: string): Promise<boolean> {
     try {
-      // 無期限のIPアドレス禁止を検索
-      const indefiniteBan = await this.db
-        .select()
-        .from(bannedIps)
-        .where(and(
-          eq(bannedIps.ipAddress, ipAddress),
-          isNull(bannedIps.expiresAt)
-        ));
-      
-      if (indefiniteBan.length > 0) {
-        return true;
+      // DNSリゾルーションエラーやその他のデータベース接続問題をより適切に処理
+      try {
+        // 接続テスト - すべてのエラーをキャッチ
+        const client = await this.pool.connect();
+        
+        try {
+          await client.query('SELECT 1');
+          client.release();
+        } catch (queryError) {
+          client.release(true); // エラーでリリース
+          throw queryError;
+        }
+      } catch (connectionError) {
+        // より詳細なエラーログ記録
+        console.error("データベース接続エラー、IP禁止チェックをスキップします:", connectionError);
+        console.log("エラーの詳細:", connectionError.message);
+        
+        if (connectionError.message && connectionError.message.includes('getaddrinfo ENOTFOUND')) {
+          console.log("DNSリゾルーションエラーが検出されました。インターネット接続またはDNS設定を確認してください。");
+        }
+        
+        // 接続エラーの場合は禁止されていないと見なす（より寛容なアプローチ）
+        return false;
       }
       
-      // 期限付きのIP禁止を検索（現在時刻よりも後に期限が切れるもの）
-      const now = new Date();
-      const activeBan = await this.db
-        .select()
-        .from(bannedIps)
-        .where(and(
-          eq(bannedIps.ipAddress, ipAddress),
-          gt(bannedIps.expiresAt, now)
-        ));
-      
-      return activeBan.length > 0;
+      try {
+        // 無期限のIPアドレス禁止を検索
+        const indefiniteBan = await this.db
+          .select()
+          .from(bannedIps)
+          .where(and(
+            eq(bannedIps.ipAddress, ipAddress),
+            isNull(bannedIps.expiresAt)
+          ));
+        
+        if (indefiniteBan.length > 0) {
+          return true;
+        }
+        
+        // 期限付きのIP禁止を検索（現在時刻よりも後に期限が切れるもの）
+        const now = new Date();
+        const activeBan = await this.db
+          .select()
+          .from(bannedIps)
+          .where(and(
+            eq(bannedIps.ipAddress, ipAddress),
+            gt(bannedIps.expiresAt, now)
+          ));
+        
+        return activeBan.length > 0;
+      } catch (dbQueryError) {
+        console.error("IP禁止リストの検索中にエラーが発生しました:", dbQueryError);
+        // クエリエラーの場合も、禁止されていないと見なす
+        return false;
+      }
     } catch (error) {
-      console.error("Error checking if IP is banned:", error);
+      console.error("IP禁止チェック中の致命的なエラー:", error);
+      // エラーが発生した場合は禁止されていないと見なす（デフォルトで許可）
       return false;
     }
   }
 }
 
-// Initialize and export the storage
+
 // プライベート変数 - モジュール内部のストレージインスタンス
 let _storage: IStorage;
 
@@ -830,12 +866,48 @@ export async function initializeStorage(): Promise<IStorage> {
     return _storage;
   }
 
-  // 直接ハードコード設定
+ 
   const databaseUrl = 'postgresql://postgres:fAYP9KMN9iiUk5rR@db.njkzjxfmkmwoowhtiyik.supabase.co:5432/postgres';
   const supabaseUrl = 'https://njkzjxfmkmwoowhtiyik.supabase.co';
   const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qa3pqeGZta213b293aHRpeWlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE2MTYzOTIsImV4cCI6MjAyNzE5MjM5Mn0.U2mAf_ZBgScFLtx82i9KjPTCdWDvvRSiSw9iHN22iZE';
 
   try {
+    try {
+      console.log('データベースホストの疎通性をチェックしています...');
+      const { exec } = require('child_process');
+      
+      const checkDns = () => {
+        return new Promise((resolve, reject) => {
+          const dns = require('dns');
+          dns.lookup('db.njkzjxfmkmwoowhtiyik.supabase.co', (err, address) => {
+            if (err) {
+              console.error('DNSリゾルーションエラー:', err);
+              if (err.code === 'ENOTFOUND') {
+                console.log('ホスト名が見つかりません。DNSの問題が考えられます。');
+              }
+              reject(err);
+            } else {
+              console.log(`ホスト名が正常に解決されました: ${address}`);
+              resolve(address);
+            }
+          });
+        });
+      };
+      
+      try {
+        await checkDns();
+      } catch (dnsError) {
+        console.warn('DNSリゾルーション問題が検出されました - メモリストレージを使用します');
+        console.warn('デプロイ環境などでDNS問題が発生する場合は、接続文字列を変更する必要があるかもしれません');
+        
+        _storage = new MemStorage();
+        return _storage;
+      }
+    } catch (pingError) {
+      console.error('DNSチェック中にエラーが発生しました:', pingError);
+      // DNSチェックでエラーが発生しても処理は続行（後のデータベース接続で本当にエラーになるか確認）
+    }
+
     // Supabase接続を優先
     if (SupabaseStorage && supabaseUrl && supabaseKey) {
       console.log('Supabase環境変数が設定されています。Supabaseストレージを初期化します...');
@@ -845,6 +917,15 @@ export async function initializeStorage(): Promise<IStorage> {
         return _storage;
       } catch (supabaseError) {
         console.error('Supabaseストレージの初期化に失敗しました:', supabaseError);
+        
+        // Supabaseエラーの詳細分析
+        if (supabaseError.message && supabaseError.message.includes('ENOTFOUND')) {
+          console.error('Supabase DNSリゾルーションエラー - ホスト名が見つかりません');
+          console.log('メモリストレージへすぐにフォールバックします');
+          _storage = new MemStorage();
+          return _storage;
+        }
+        
         console.warn('他のストレージ方法を試行します...');
       }
     }
@@ -854,10 +935,40 @@ export async function initializeStorage(): Promise<IStorage> {
       console.log('PostgreSQLデータベースURLが設定されています。PostgreSQLストレージを初期化します...');
       try {
         _storage = new PostgresStorage();
-        console.log('✅ PostgreSQLデータベースに正常に接続しました。PostgreSQLストレージを使用します。');
-        return _storage;
+        
+        // 接続テスト - 実際にクエリを実行してみる
+        try {
+          // @ts-ignore - 型チェックを無視
+          const testClient = await (_storage as PostgresStorage).pool.connect();
+          try {
+            await testClient.query('SELECT 1');
+            testClient.release();
+            console.log('✅ PostgreSQLデータベースに正常に接続しました。PostgreSQLストレージを使用します。');
+            return _storage;
+          } catch (queryError) {
+            testClient.release(true); // エラーでリリース
+            throw queryError;
+          }
+        } catch (connectionTestError) {
+          console.error('PostgreSQL接続テストに失敗しました:', connectionTestError);
+          throw connectionTestError;
+        }
       } catch (dbError) {
         console.error('PostgreSQLデータベース接続エラー:', dbError);
+        
+        // Postgresエラーの詳細分析
+        if (dbError.message) {
+          console.error('エラーメッセージ:', dbError.message);
+          
+          if (dbError.message.includes('ENOTFOUND')) {
+            console.error('PostgreSQL DNSリゾルーションエラー - ホスト名が見つかりません');
+          } else if (dbError.message.includes('ETIMEDOUT')) {
+            console.error('PostgreSQL接続タイムアウト - サーバーが応答していません');
+          } else if (dbError.message.includes('ECONNREFUSED')) {
+            console.error('PostgreSQL接続拒否 - サーバーが接続を拒否しました');
+          }
+        }
+        
         console.warn('⚠️ PostgreSQL接続に失敗しました。メモリストレージにフォールバックします。');
       }
     }
@@ -874,14 +985,36 @@ export async function initializeStorage(): Promise<IStorage> {
   }
 }
 
-// 互換性のために古い実装を保持
+// 互換性のために古い実装を保持しつつ、エラー処理を強化
 try {
   // Try to create PostgreSQL storage (レガシー方式)
-  _storage = new PostgresStorage();
-  console.log("Using PostgreSQL storage (legacy initialization)");
+  try {
+    _storage = new PostgresStorage();
+    console.log("Using PostgreSQL storage (legacy initialization)");
+    
+    // 接続が本当に機能しているか確認する追加テスト
+    setTimeout(async () => {
+      try {
+        // @ts-ignore - 型エラーを無視
+        await (_storage as PostgresStorage).pool.query('SELECT 1');
+        console.log("PostgreSQL接続が正常に動作していることを確認しました");
+      } catch (testError) {
+        console.error("PostgreSQL接続テストに失敗しました。メモリストレージに切り替えます:", testError);
+        _storage = new MemStorage();
+        console.log("メモリストレージへの切り替えが完了しました");
+      }
+    }, 1000);
+    
+  } catch (pgError) {
+    // PostgreSQL初期化に失敗した場合の詳細ログ
+    console.error("PostgreSQL初期化エラー:", pgError);
+    console.warn("PostgreSQL初期化に失敗しました。メモリストレージにフォールバックします");
+    _storage = new MemStorage();
+  }
 } catch (error) {
-  // Fallback to memory storage if database initialization fails
-  console.warn("Falling back to in-memory storage (legacy initialization):", error);
+  // キャッチできなかった何らかのエラーに対する安全策
+  console.error("予期しないエラーが発生しました:", error);
+  console.warn("予期しないエラーにより、メモリストレージにフォールバックします");
   _storage = new MemStorage();
 }
 
