@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: advanced-media-access
+    env: node
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: chmod +x start.sh && ./start.sh
+    nodeVersion: 20.x
+    # 全ての環境変数をここに定義し、.envファイルなしでも動作するようにする
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RENDER
+        value: "true"
+      - key: PORT
+        value: 10000
+      - key: YOUTUBE_DL_SKIP_DOWNLOAD
+        value: "true"
+      - key: YT_DLP_SKIP_DOWNLOAD
+        value: "true"
+      - key: YT_DLP_PATH
+        value: "/opt/render/project/.pythonlibs/bin/yt-dlp"
+      - key: DEPLOY_ENV
+        value: "render"
+      # Supabase設定（必要に応じて実際の値に置き換えてください）
+      # 以下はダミー値です。実際にSupabaseを使用する場合は、実際の値に置き換えてください
+      - key: SUPABASE_URL
+        value: ""
+      - key: SUPABASE_KEY
+        value: ""
+      # データベースURL（Render無料プランではSQLが使用できないため空値を設定）
+      - key: DATABASE_URL
+        value: ""
+      # その他の環境変数をここに追加
+      - key: FFMPEG_PATH
+        value: "/opt/render/project/bin/ffmpeg"
+
+# Renderの無料プランではSQLデータベースが使えないため、コメントアウト
+# 必要な場合は有料プランに変更してこのセクションのコメントを外してください
+# databases:
+#   - name: advanced-media-access-db
+#     databaseName: advanced_media_access
+#     user: advanced_media_access_user
+#     ipAllowList: []  # Only allow internal connections
