@@ -1,1 +1,0 @@
-const FFMPEG_PATH = process.env.FFMPEG_PATH || '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg';
