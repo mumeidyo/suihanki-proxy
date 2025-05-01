@@ -17,7 +17,8 @@ if [ "$RENDER" = "true" ]; then
   if command -v python3 &> /dev/null; then
     echo "Python 3 is installed, installing pip packages..."
     python3 -m pip install --upgrade pip
-    python3 -m pip install yt-dlp
+    # 開発版のyt-dlpをインストール（機能強化版）
+    python3 -m pip install --upgrade --force-reinstall https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz
     
     # インストールされたパスを確認
     YT_DLP_PATH=$(which yt-dlp)
