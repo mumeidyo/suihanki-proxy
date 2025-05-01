@@ -14,7 +14,13 @@ import { randomUUID } from 'crypto';
 import * as crypto from 'crypto';
 
 // キャッシュディレクトリのパス
-const CACHE_DIR = path.join(process.cwd(), 'tmp', 'audio-cache');
+// Render環境では/tmpを使用し、それ以外ではプロジェクトディレクトリ内のtmpを使用
+const isRender = process.env.RENDER === 'true' || process.cwd().includes('render');
+const CACHE_DIR = isRender 
+  ? path.join('/tmp', 'audio-cache') 
+  : path.join(process.cwd(), 'tmp', 'audio-cache');
+
+console.log(`音声キャッシュディレクトリ設定: ${CACHE_DIR} (環境: ${isRender ? 'Render' : '通常'})`);
 
 // 現在処理中の音声トラック
 const activeDownloads = new Map<string, { 
