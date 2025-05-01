@@ -491,11 +491,22 @@ export function selectOptimalFormat(formats: VideoFormat[], preferMobile = false
     return null;
   }
   
-  // モバイル向け最適化設定
-  const targetHeight = preferMobile ? 480 : 720;
+  // Render環境ではより柔軟な選択
+  const isRender = process.env.RENDER === 'true' || process.cwd().includes('render');
+  
+  // 解像度設定 - Render環境では最小のものから始める（より確実に動作するため）
+  const targetHeight = isRender ? 360 : (preferMobile ? 480 : 720);
+  
+  console.log(`Format selection: Environment=${isRender ? 'Render' : 'Normal'}, TargetHeight=${targetHeight}, Available formats=${formats.length}`);
+  
+  // すべてのフォーマットを一度出力（デバッグ用）
+  formats.forEach((format, index) => {
+    console.log(`Format[${index}]: ${format.qualityLabel}, hasVideo=${format.hasVideo}, hasAudio=${format.hasAudio}, container=${format.container}, height=${format.height || 'N/A'}`);
+  });
   
   // 両方のストリームを含むフォーマットを優先
   const combinedFormats = formats.filter(f => f.hasVideo && f.hasAudio);
+  console.log(`Combined formats found: ${combinedFormats.length}`);
   
   if (combinedFormats.length > 0) {
     // 画質に基づいてソート
@@ -503,14 +514,21 @@ export function selectOptimalFormat(formats: VideoFormat[], preferMobile = false
       const aHeight = a.height || 0;
       const bHeight = b.height || 0;
       
-      // 目標解像度に近いものを優先
-      const aDiff = Math.abs(aHeight - targetHeight);
-      const bDiff = Math.abs(bHeight - targetHeight);
-      
-      return aDiff - bDiff;
+      if (isRender) {
+        // Render環境では確実に動作する低解像度を優先
+        return aHeight - bHeight;
+      } else {
+        // 通常環境では目標解像度に近いものを優先
+        const aDiff = Math.abs(aHeight - targetHeight);
+        const bDiff = Math.abs(bHeight - targetHeight);
+        return aDiff - bDiff;
+      }
     });
     
-    return sortedByQuality[0];
+    // 選択したフォーマットを出力
+    const selected = sortedByQuality[0];
+    console.log(`Selected format: ${selected.qualityLabel}, container=${selected.container}, height=${selected.height || 'N/A'}`);
+    return selected;
   }
   
   // 別々のストリームを選択する必要がある場合
