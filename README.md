@@ -38,8 +38,8 @@ npm run db:push
 
 - **フロントエンド**: React, TypeScript, TailwindCSS
 - **バックエンド**: Node.js, Express, TypeScript
-- **データベース**: PostgreSQL, Drizzle ORM
-- **プロキシ**: Ultraviolet, カスタムプロキシ実装
+- **データベース**: PostgreSQL, Drizzle ORM、カスタムメモリ
+- **プロキシ**: カスタムプロキシ
 - **システム監視**: カスタムメモリ・CPU監視モジュール
 
 ## プロジェクト構造
@@ -114,9 +114,7 @@ Render上でのデプロイメントには以下のリソースを推奨しま�
 
 最も簡単な方法は、下記の「Deploy to Render」ボタンをクリックすることです。
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yourusername/advanced-media-access)
-
-※ リンク内の `yourusername` を、あなたの実際のGitHubユーザー名に置き換えてください。
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/mumeidyo/suihanki-proxy/tree/new-main)
 
 ## 手動デプロイメント手順
 
